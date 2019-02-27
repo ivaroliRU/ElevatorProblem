@@ -21,6 +21,7 @@ public class Person implements Runnable {
 				case 0:
 					if(scene.getFloor(source, true).availablePermits() > 0) {
 						scene.getSpace().acquire();
+						scene.pushElevatorButton(destination, true);
 						stage++;
 					}
 					break;

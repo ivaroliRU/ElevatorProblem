@@ -21,9 +21,11 @@ public class ElevatorScene {
 	private int numberOfFloors;
 	private int numberOfElevators;
 	private int currentFloor;
+	private boolean elevatorFloorButtons[];
 	private Semaphore floors[][];
 	private Semaphore availableSpaceInElevator;
-
+	private ArrayList<Thread> runningThreads = new ArrayList<Thread>();
+	
 	ArrayList<Integer> personCount; //use if you want but
 									//throw away and
 									//implement differently
@@ -71,6 +73,7 @@ public class ElevatorScene {
 		//set up floor sephamore
 		//floors[destination][out/in]
 		this.floors = new Semaphore[numberOfFloors][2];
+		this.elevatorFloorButtons = new boolean[numberOfFloors];
 		
 		//floor setup
 		for(int i = 0; i < numberOfFloors;i++) {
@@ -84,10 +87,11 @@ public class ElevatorScene {
 		//set the counter of how many people are in the elevator
 		availableSpaceInElevator = new Semaphore(MAX_PEOPLE_IN_ELEVATOR);
 		
-		Thread elevatorThread = new Thread(new Elevator(this));
+		Thread elevatorThread = new Thread(new Elevator(this, numberOfFloors, VISUALIZATION_WAIT_TIME));
 		elevatorThread.start();
 	}
 
+	//This returns the door semaphore, either let in door or let out door
 	public Semaphore getFloor(int floor, boolean in) {
 		if(in) {
 			return floors[floor][0];
@@ -99,6 +103,17 @@ public class ElevatorScene {
 	
 	public Semaphore getSpace() {
 		return availableSpaceInElevator;
+	}
+	
+	//function for a person to push a button inside of the elevator to the destination floor
+	//or for a elevator to reset the button
+	public void pushElevatorButton(int destination, boolean value) {
+		elevatorFloorButtons[destination] = value;
+	}
+	
+	//function for a elevator to check if the buttons inside the eleator have been pushed
+	public boolean isElevatorButtonPushed(int destination) {
+		return elevatorFloorButtons[destination];
 	}
 	
 	//Base function: definition must not change
@@ -127,8 +142,6 @@ public class ElevatorScene {
 	
 	//Base function: definition must not change, but add your code
 	public int getCurrentFloorForElevator(int elevator) {
-
-		//dumb code, replace it!
 		return currentFloor;
 	}
 
