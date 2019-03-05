@@ -5,18 +5,20 @@ import java.util.concurrent.Semaphore;
 public class Elevator implements Runnable {
 
 	private ElevatorScene scene;
-	private int currentFloor, numberOfFloors, time;
+	private int currentFloor, numberOfFloors, time, elevatorNumber;
 	private boolean letPeopleIn, up;
 	
-	public Elevator(ElevatorScene scene, int numberOfFloors, int time) {
+	public Elevator(ElevatorScene scene, int numberOfFloors, int time, int elevatorNumber, int floor) {
 		this.scene = scene;
-		//always start on the first floor
-		this.currentFloor = 0;
+		//always start on the first floor - **change this**
+		this.currentFloor = floor;
 		//begin by letting people in the elevator
 		this.letPeopleIn = true;
 		this.numberOfFloors = numberOfFloors;
 		this.time = time;
-		this.up = true;
+		//randomly set the direction of the elevator
+		this.up = (Math.random() > 0.5)?true:false;
+		this.elevatorNumber = elevatorNumber;
 	}
 	
 	@Override
@@ -26,7 +28,7 @@ public class Elevator implements Runnable {
 				//if we are letting people in the elevator
 				if(letPeopleIn) {
 					//open the door
-					Semaphore door = scene.getFloor(currentFloor, true);
+					Semaphore door = scene.getFloor(currentFloor, true, elevatorNumber);
 					if(door.availablePermits() <= 0)
 						door.release();
 					//wait for people to gtfo
@@ -35,11 +37,12 @@ public class Elevator implements Runnable {
 					letPeopleIn = false;
 					door.acquire();
 					//go to next floor 
-					scene.setFloorForElevator(getNextFloor());
+					currentFloor = getNextFloor();
+					scene.setFloorForElevator(currentFloor,elevatorNumber);
 				}
 				//if we are letting people out
 				else {
-					Semaphore door = scene.getFloor(currentFloor, false);
+					Semaphore door = scene.getFloor(currentFloor, false, elevatorNumber);
 					scene.pushElevatorButton(currentFloor, false);
 					if(door.availablePermits() <= 0)
 						door.release();
@@ -61,19 +64,20 @@ public class Elevator implements Runnable {
 	 * Below is the main logic for the elevator.
 	 * If we are going in a direction, continue in that direction until we reach a end of the building or
 	 * no one is going in that direction or if there aren't any people waiting in that direction
-	 * 
-	 * If the elevator is full then continue to
 	*/
 	private int getNextFloor() {
+		int nextFloor = currentFloor;
+		
 		if(currentFloor == numberOfFloors-1 || currentFloor == 0) {
 			up = !up;
 		}
 		
 		if(peopleWaiting()) {
-			currentFloor = (up)?currentFloor + 1:currentFloor - 1;
+			//if we are going up then increment floor else decrement
+			nextFloor = (up)?currentFloor + 1:currentFloor - 1;
 		}
 		
-		return currentFloor;
+		return nextFloor;
 	}
 	
 	//are people waiting for an elevator in the direction we are going in??

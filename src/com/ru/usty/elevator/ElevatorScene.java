@@ -20,13 +20,14 @@ public class ElevatorScene {
 
 	private int numberOfFloors;
 	private int numberOfElevators;
-	private int currentFloor;
+	private int currentFloor[];
 	private boolean elevatorFloorButtons[];
-	private Semaphore floors[][];
-	private Semaphore availableSpaceInElevator;
+	private Semaphore floors[][][];
+	private Semaphore availableSpaceInElevator[];
+	private Thread elevatorThreads[];
 	private ArrayList<Thread> runningThreads = new ArrayList<Thread>();
 	
-	ArrayList<Integer> personCount; //use if you want but
+	int personCount[]; //use if you want but
 									//throw away and
 									//implement differently
 									//if it suits you
@@ -36,24 +37,21 @@ public class ElevatorScene {
 	//Base function: definition must not change
 	//Necessary to add your code in this one
 	public void restartScene(int numberOfFloors, int numberOfElevators) {
-		/**
-		 * Important to add code here to make new
-		 * threads that run your elevator-runnables
-		 * 
-		 * Also add any other code that initializes
-		 * your system for a new run
-		 * 
-		 * If you can, tell any currently running
-		 * elevator threads to stop
-		 */
-
 		this.numberOfFloors = numberOfFloors;
 		this.numberOfElevators = numberOfElevators;
+		//set up floor sephamore
+		//floors[destination][out/in]
+		this.floors = new Semaphore[numberOfElevators][numberOfFloors][2];
+		
+		this.elevatorFloorButtons = new boolean[numberOfFloors];
+		//threads for each elevator
+		this.elevatorThreads = new Thread[numberOfElevators];
+		//set the counter of how many people are in the elevator
+		availableSpaceInElevator = new Semaphore[numberOfElevators];
+		//set the elevator starting floor
+		this.currentFloor = new int[numberOfFloors];
 
-		personCount = new ArrayList<Integer>();
-		for(int i = 0; i < numberOfFloors; i++) {
-			this.personCount.add(0);
-		}
+		personCount = new int[numberOfFloors];
 
 		if(exitedCount == null) {
 			exitedCount = new ArrayList<Integer>();
@@ -66,43 +64,38 @@ public class ElevatorScene {
 		}
 		exitedCountMutex = new Semaphore(1);
 		
-		
-		//set the elevator starting floor
-		this.currentFloor = 0;
-		
-		//set up floor sephamore
-		//floors[destination][out/in]
-		this.floors = new Semaphore[numberOfFloors][2];
-		this.elevatorFloorButtons = new boolean[numberOfFloors];
-		
-		//floor setup
-		for(int i = 0; i < numberOfFloors;i++) {
-			this.floors[i][0] = new Semaphore(0);
-			this.floors[i][1] = new Semaphore(0);
+		//setup for all elevators
+		for(int i = 0; i < numberOfElevators;i++) {
+			
+			//door setup
+			for(int j = 0; j < numberOfFloors;j++) {
+				this.floors[i][j][0] = new Semaphore(0);
+				this.floors[i][j][1] = new Semaphore(0);
+			}
+			
+			//set space in elevators
+			availableSpaceInElevator[i] = new Semaphore(MAX_PEOPLE_IN_ELEVATOR);
+			//set the starting floor of an elevator to random
+			currentFloor[i] = (int)(Math.random() * numberOfFloors - 0);
+			//start elevator threads
+			this.elevatorThreads[i] = new Thread(new Elevator(this, numberOfFloors, VISUALIZATION_WAIT_TIME, i, currentFloor[i]));
+			this.runningThreads.add(this.elevatorThreads[i]);
+			this.elevatorThreads[i].start();
 		}
-		
-		//open up the first floor
-		this.floors[0][0].release();
-		
-		//set the counter of how many people are in the elevator
-		availableSpaceInElevator = new Semaphore(MAX_PEOPLE_IN_ELEVATOR);
-		
-		Thread elevatorThread = new Thread(new Elevator(this, numberOfFloors, VISUALIZATION_WAIT_TIME));
-		elevatorThread.start();
 	}
 
 	//This returns the door semaphore, either let in door or let out door
-	public Semaphore getFloor(int floor, boolean in) {
+	public Semaphore getFloor(int floor, boolean in, int elevator) {
 		if(in) {
-			return floors[floor][0];
+			return floors[elevator][floor][0];
 		}
 		else {
-			return floors[floor][1];
+			return floors[elevator][floor][1];
 		}
 	}
 	
-	public Semaphore getSpace() {
-		return availableSpaceInElevator;
+	public Semaphore getSpace(int elevator) {
+		return availableSpaceInElevator[elevator];
 	}
 	
 	//function for a person to push a button inside of the elevator to the destination floor
@@ -111,7 +104,7 @@ public class ElevatorScene {
 		elevatorFloorButtons[destination] = value;
 	}
 	
-	//function for a elevator to check if the buttons inside the eleator have been pushed
+	//function for a elevator to check if the buttons inside the elevator have been pushed
 	public boolean isElevatorButtonPushed(int destination) {
 		return elevatorFloorButtons[destination];
 	}
@@ -129,32 +122,38 @@ public class ElevatorScene {
 		 * (you don't have to join() yourself)
 		 */
 		
-		Thread thread = new Thread(new Person(sourceFloor, destinationFloor, this));
+		Thread thread = new Thread(new Person(sourceFloor, destinationFloor, numberOfElevators, this));
 		thread.start();
 		
-		personCount.set(sourceFloor, personCount.get(sourceFloor) + 1);
+		//personCount.set(sourceFloor, personCount[sourceFloor] + 1);
+		personCount[sourceFloor]++;
+		this.runningThreads.add(thread);
 		return thread;  //this means that the testSuite will not wait for the threads to finish
 	}
 
-	public void setFloorForElevator(int floor) {
-		currentFloor = floor;
+	public void setFloorForElevator(int floor, int elevator) {
+		System.out.println("Elevator: " + elevator + " is at floor " + floor);
+		currentFloor[elevator] = floor;
+	}
+	
+	//call this when person enters elevator
+	public void personEnteringElevatorAtFloor(int floor) {
+		personCount[floor]--;
 	}
 	
 	//Base function: definition must not change, but add your code
 	public int getCurrentFloorForElevator(int elevator) {
-		return currentFloor;
+		return currentFloor[elevator];
 	}
 
 	//Base function: definition must not change, but add your code
 	public int getNumberOfPeopleInElevator(int elevator) {
-		//return 3;
-		return MAX_PEOPLE_IN_ELEVATOR - availableSpaceInElevator.availablePermits();
+		return MAX_PEOPLE_IN_ELEVATOR - availableSpaceInElevator[elevator].availablePermits();
 	}
 
 	//Base function: definition must not change, but add your code
 	public int getNumberOfPeopleWaitingAtFloor(int floor) {
-
-		return personCount.get(floor);
+		return personCount[floor];
 	}
 
 	//Base function: definition must not change, but add your code if needed
